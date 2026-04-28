@@ -1,208 +1,117 @@
-\# Insurance Claim Modeling with Random Forest  
+# Insurance Claim Modeling with Random Forest
 
-\### Frequency–Severity Approach
+## Frequency–Severity Approach
 
+## TL;DR
 
+> Two-part insurance risk model:
+> - **Frequency** → probability of a claim  
+> - **Severity** → size of a claim  
 
-\## TL;DR
+Combining both:
+> **Expected Loss = Frequency × Severity**
 
-This project implements a \*\*two-part insurance risk model\*\*:
+This project applies **Random Forest models** to capture nonlinear risk patterns and analyze insurance portfolio behavior.
 
+---
 
-
-\- \*\*Frequency model\*\* → predicts whether / how often a claim occurs  
-
-\- \*\*Severity model\*\* → predicts the size of a claim  
-
-
-
-Both are built using \*\*Random Forest\*\*, reflecting how real-world insurance pricing separates risk into occurrence and impact.
-
-
-
-\---
-
-
-
-\## Problem
-
-
+## Problem
 
 Insurance risk is not a single prediction problem.
 
+Instead, expected loss is modeled as:
 
-
-Instead, expected loss is typically modeled as:
-
-
-
-> \*\*Expected Cost = Frequency × Severity\*\*
-
-
+> **Expected Cost = Frequency × Severity**
 
 Where:
+- **Frequency** = likelihood of a claim  
+- **Severity** = cost given a claim  
 
-\- Frequency = probability (or count) of claims  
+This structure better reflects real-world insurance pricing.
 
-\- Severity = cost per claim  
+---
 
+## Methodology
 
+### Frequency Model
+- Random Forest Classifier  
+- Predicts claim probability  
 
-Most simple ML projects ignore this structure.  
+### Severity Model
+- Random Forest Regressor  
+- Predicts claim size  
 
-This project explicitly models both components.
+### Final Output
+- Combined into **Expected Loss per customer**
 
+---
 
+## Key Results
 
-\---
+### Business Impact: Total Expected Loss per Segment
+![Total Loss](images/segment_total_loss.png)
 
+Some segments contribute disproportionately to total loss.  
+This highlights that **portfolio concentration is as important as individual risk**.
 
+---
 
-\## Data
+### Risk Structure: Frequency vs Severity
+![Risk Scatter](images/risk_scatter.png)
 
+There is a clear nonlinear relationship:
+- High claim probability often coincides with high severity  
+- Risk is clustered rather than evenly distributed  
 
+---
 
-Two datasets are used:
+### Feature Importance (Frequency Model)
+![Feature Importance](images/feature_importance.png)
 
+A small number of features dominate prediction power,  
+suggesting **strong underlying drivers of claim occurrence**.
 
+---
 
-\- `frequency.csv` → claim occurrence data  
+### Interpretable Segmentation (Surrogate Tree)
+![Surrogate Tree](images/surrogate_tree.png)
 
-\- `severity.csv` → claim size data  
+A decision tree approximation of the model reveals:
+- Clear segmentation rules  
+- Key thresholds driving risk differences  
+- Interpretable structure behind a complex model  
 
+---
 
+## Distribution of Expected Loss
+![Expected Loss Distribution](images/expected_loss_dist.png)
 
-\### Features
+The distribution is highly skewed:
+- Most customers have low expected loss  
+- A small group drives extreme risk  
 
-\- `uwYear` (underwriting year)
+This is typical in insurance and reinforces the need for segmentation.
 
-\- `gender`
+---
 
-\- `carType`
+## Portfolio-Level Insights
 
-\- (additional structured risk features)
+### Customer Segmentation Overview
+![Summary Panel](images/summary_panel.png)
 
+- High-risk groups are identifiable  
+- Job category, car type, and demographics affect claim behavior  
+- Certain segments consistently exhibit elevated expected loss  
 
+---
 
-\### Targets
+## Key Takeaways
 
-\- Frequency target → claim occurrence / count  
+- Modeling **frequency and severity separately** improves realism  
+- Risk is **nonlinear and concentrated in specific segments**  
+- Random Forest captures interactions that linear models miss  
+- A small subset of customers drives a large share of total loss  
 
-\- Severity target → claim size  
+---
 
-
-
-\---
-
-
-
-\## Methodology
-
-
-
-\### 1. Preprocessing
-
-\- Categorical encoding using `OneHotEncoder`
-
-\- Column-wise transformation via `ColumnTransformer`
-
-\- Integrated into a `Pipeline` for reproducibility
-
-
-
-\---
-
-
-
-\### 2. Modeling
-
-
-
-\#### Frequency Model
-
-\- Model: `RandomForestClassifier`
-
-\- Objective: predict claim occurrence / likelihood
-
-
-
-\#### Severity Model
-
-\- Model: `RandomForestRegressor`
-
-\- Objective: predict claim size conditional on a claim
-
-
-
-\---
-
-
-
-\### 3. Why This Approach
-
-
-
-This structure reflects real actuarial modeling:
-
-
-
-\- Separates \*\*probability of risk\*\* from \*\*impact of risk\*\*
-
-\- Handles skewed distributions more effectively
-
-\- Allows more granular analysis of drivers
-
-
-
-\---
-
-
-
-\## Key Strengths
-
-
-
-\- Uses \*\*pipeline-based architecture\*\* (clean + reproducible)
-
-\- Applies \*\*ensemble methods\*\* for nonlinear relationships
-
-\- Implements \*\*industry-relevant modeling structure\*\* (frequency–severity split)
-
-
-
-\---
-
-
-
-\## Limitations
-
-
-
-\- No explicit hyperparameter tuning yet  
-
-\- Models evaluated independently (not combined into expected loss)  
-
-\- Limited interpretability without feature importance / SHAP  
-
-
-
-\---
-
-
-
-\## Next Steps (High Impact)
-
-
-
-To make this a strong portfolio project:
-
-
-
-\### 1. Combine models
-
-Compute:
-
-```python
-
-expected\_cost = predicted\_frequency \* predicted\_severity
-
+## Project Structure
