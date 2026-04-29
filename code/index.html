@@ -487,8 +487,8 @@ function buildTerrain(){
       `;
     });
     r.addEventListener('mousemove',e=>{
-      tip.style.left=(e.clientX+14)+'px';
-      tip.style.top=(e.clientY-10)+'px';
+      tip.style.left=(e.clientX+0)+'px';
+      tip.style.top=(e.clientY-6)+'px';
     });
     r.addEventListener('mouseleave',()=>{r.style.opacity='1';tip.style.display='none'});
     svg.appendChild(r);
