@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AGEAS · Portfolio Risk Intelligence</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Fira+Code:wght@300;400;500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <style>
@@ -139,6 +140,60 @@ footer{text-align:center;padding:28px 40px;font-family:'Fira Code',monospace;fon
   .kpi-row{grid-template-columns:1fr}
   .insight-grid{grid-template-columns:1fr}
 }
+
+/* ─── Tree Visualization ─── */
+.tree-container {
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+    overflow-x: auto;
+    min-height: 480px;
+    overflow-x: auto;/*  ADD THIS */
+}
+.node circle {
+    fill: var(--surface2);
+    stroke: var(--gold);
+    stroke-width: 1.2px;
+    cursor: pointer;
+    transition: fill 0.3s;
+}
+.node circle:hover {
+    fill: var(--gold);
+}
+.node text {
+    font-family: 'Fira Code', monospace;
+    font-size: 11px;
+    fill: var(--text);
+}
+.link {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 1.5px;
+}
+.tree-controls {
+    margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
+}
+.tree-btn {
+    background-color: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+.tree-btn.active {
+    background-color: rgba(232,166,59,.1);
+    color: var(--gold);
+    border-color: var(--gold);
+}
+
 </style>
 </head>
 <body>
@@ -209,7 +264,15 @@ footer{text-align:center;padding:28px 40px;font-family:'Fira Code',monospace;fon
       <tbody id="seg-tbody"></tbody>
     </table>
   </div>
-
+<div class="card">
+    <div class="card-title">Surrogate Tree Model</div>
+    <div class="card-sub">Interactive logic showing how the 10 tiers are derived. Click the nodes to expand or collapse branches.</div>
+    <div class="tree-controls">
+        <button class="tree-btn active" onclick="drawTree(treeData8, this)">8-Leaf Model</button>
+        <button class="tree-btn" onclick="drawTree(treeData24, this)">24-Leaf Model</button>
+    </div>
+    <div id="interactive-tree" class="tree-container"></div>
+  </div>
 </div>
 
 <!-- ══════════ TAB 1 · Loss Drivers ══════════ -->
@@ -345,6 +408,33 @@ const clusters = [
   {id:"MedHigh_1",   band:"Medium-High",  n:2993, pct:48.3, gender:"Male",job:"Employed",  carType:"A", age:27.7, loss:427},
   {id:"High_0",      band:"High",         n:3190, pct:51.5, gender:"Male",job:"Employed",  carType:"A", age:29.5, loss:895},
   {id:"High_1",      band:"High",         n:3004, pct:48.5, gender:"Male",job:"Unemployed",carType:"A", age:22.2, loss:784},
+];
+
+const method6Data = [
+    { id: 1, n: 6711, loss: 206.77, total: 1387647 },
+    { id: 2, n: 4240, loss: 278.59, total: 1181218 },
+    { id: 3, n: 3811, loss: 363.10, total: 1383777 },
+    { id: 4, n: 1717, loss: 412.27, total: 707865 },
+    { id: 5, n: 977, loss: 424.92, total: 415149 },
+    { id: 6, n: 565, loss: 496.12, total: 280310 },
+    { id: 7, n: 272, loss: 507.19, total: 137956 },
+    { id: 8, n: 981, loss: 538.01, total: 527789 },
+    { id: 9, n: 938, loss: 560.17, total: 525440 },
+    { id: 10, n: 934, loss: 677.28, total: 632577 },
+    { id: 11, n: 992, loss: 756.81, total: 750753 },
+    { id: 12, n: 517, loss: 758.00, total: 391888 },
+    { id: 13, n: 262, loss: 778.16, total: 203877 },
+    { id: 14, n: 139, loss: 841.23, total: 116931 },
+    { id: 15, n: 219, loss: 918.19, total: 201082 },
+    { id: 16, n: 223, loss: 932.27, total: 207896 },
+    { id: 17, n: 325, loss: 1072.12, total: 348437 },
+    { id: 18, n: 453, loss: 1172.02, total: 530926 },
+    { id: 19, n: 260, loss: 1181.25, total: 307124 },
+    { id: 20, n: 148, loss: 1277.28, total: 189037 },
+    { id: 21, n: 42, loss: 1433.48, total: 60206 },
+    { id: 22, n: 35, loss: 1785.55, total: 62494 },
+    { id: 23, n: 12, loss: 2443.98, total: 29327 },
+    { id: 24, n: 1, loss: 6856.99, total: 6856 }
 ];
 
 const tornado = [
@@ -769,12 +859,378 @@ function buildCellsBar(){
   });
 }
 
+
+
+
+/* ─── TREE VISUALIZATION ─── */
+const treeData8 = {
+    name: "Root",
+    rule: "Age",
+    children: [
+        {
+            name: "Age > 29.50",
+            rule: "Density",
+            children: [
+                { name: "Density <= 151.84", rule: "Retain (Mean €235)" },
+                { name: "Density > 151.84", rule: "Monitor (Mean €406)" }
+            ]
+        },
+        {
+            name: "Age <= 29.50",
+            rule: "Density",
+            children: [
+                {
+                    name: "Density <= 190.01",
+                    rule: "Job",
+                    children: [
+                        {
+                            name: "Job in {Emp, Ret...}",
+                            rule: "Age",
+                            children: [
+                                { name: "Age > 22.50", rule: "Monitor (Mean €458)" },
+                                { name: "Age <= 22.50", rule: "Review (Mean €651)" }
+                            ]
+                        },
+                        {
+                            name: "Job in {Unemployed}",
+                            rule: "Density",
+                            children: [
+                                { name: "Density <= 87.49", rule: "Review (Mean €672)" },
+                                { name: "Density > 87.49", rule: "Flag (Mean €950)" }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: "Density > 190.01",
+                    rule: "Age",
+                    children: [
+                        { name: "Age > 22.50", rule: "Review (Mean €835)" },
+                        { name: "Age <= 22.50", rule: "Flag (Mean €950)" }
+                    ]
+                }
+            ]
+        }
+    ]
+};
+
+const treeData24 = {
+    name: "Root",
+    rule: "Age",
+    children: [
+        {
+            name: "Age > 29.50",
+            rule: "Density",
+            children: [
+                {
+                    name: "Density <= 151.84",
+                    rule: "Density",
+                    children: [
+                        { name: "Density <= 77.71", rule: "Retain (Mean €207)" },
+                        { name: "Density > 77.71", rule: "Retain (Mean €279)" }
+                    ]
+                },
+                {
+                    name: "Density > 151.84",
+                    rule: "Density",
+                    children: [
+                        { name: "Density <= 246.92", rule: "Monitor (Mean €363)" },
+                        {
+                            name: "Density > 246.92",
+                            rule: "Density",
+                            children: [
+                                { name: "Density <= 274.03", rule: "Review (Mean €560)" },
+                                { name: "Density > 274.03", rule: "Monitor (Mean €425)" }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            name: "Age <= 29.50",
+            rule: "Density",
+            children: [
+                {
+                    name: "Density <= 190.01",
+                    rule: "Job",
+                    children: [
+                        {
+                            name: "Job in {Emp, Ret...}",
+                            rule: "Age",
+                            children: [
+                                {
+                                    name: "Age <= 22.50",
+                                    rule: "Gender",
+                                    children: [
+                                        { name: "Female", rule: "Monitor (Mean €496)" },
+                                        {
+                                            name: "Male",
+                                            rule: "Age",
+                                            children: [
+                                                { name: "Age <= 18.50", rule: "Flag (Mean €932)" },
+                                                { name: "Age > 18.50", rule: "Review (Mean €677)" }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    name: "Age > 22.50",
+                                    rule: "Density",
+                                    children: [
+                                        { name: "Density <= 100.57", rule: "Monitor (Mean €412)" },
+                                        { name: "Density > 100.57", rule: "Review (Mean €538)" }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            name: "Job in {Unemployed}",
+                            rule: "Density",
+                            children: [
+                                {
+                                    name: "Density <= 87.49",
+                                    rule: "Gender",
+                                    children: [
+                                        { name: "Female", rule: "Monitor (Mean €507)" },
+                                        { name: "Male", rule: "Review (Mean €758)" }
+                                    ]
+                                },
+                                {
+                                    name: "Density > 87.49",
+                                    rule: "Age",
+                                    children: [
+                                        {
+                                            name: "Age <= 24.50",
+                                            rule: "Gender",
+                                            children: [
+                                                { name: "Female", rule: "Flag (Mean €841)" },
+                                                { name: "Male", rule: "Flag (Mean €1181)" }
+                                            ]
+                                        },
+                                        { name: "Age > 24.50", rule: "Review (Mean €778)" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: "Density > 190.01",
+                    rule: "Age",
+                    children: [
+                        {
+                            name: "Age <= 22.50",
+                            rule: "Job",
+                            children: [
+                                {
+                                    name: "Job in {Emp, Ret...}",
+                                    rule: "Gender",
+                                    children: [
+                                        { name: "Female", rule: "Flag (Mean €918)" },
+                                        { name: "Male", rule: "Flag (Mean €1172)" }
+                                    ]
+                                },
+                                {
+                                    name: "Job in {Unemployed}",
+                                    rule: "Density",
+                                    children: [
+                                        { name: "Density <= 258.96", rule: "Flag (Mean €1277)" },
+                                        {
+                                            name: "Density > 258.96",
+                                            rule: "UW Year / Tenure",
+                                            children: [
+                                                { name: "Older UW", rule: "Flag (Mean €1433)" },
+                                                {
+                                                    name: "Recent UW",
+                                                    rule: "Density",
+                                                    children: [
+                                                        { name: "Density <= 287.88", rule: "Severe (Mean €1786)" },
+                                                        {
+                                                            name: "Density > 287.88",
+                                                            rule: "Tenure",
+                                                            children: [
+                                                                { name: "nYears <= 13", rule: "Extreme (Mean €2444)" },
+                                                                { name: "nYears > 13", rule: "Extreme (Mean €6857)" }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            name: "Age > 22.50",
+                            rule: "Job",
+                            children: [
+                                { name: "Job in {Emp, Ret...}", rule: "Review (Mean €757)" },
+                                { name: "Job in {Unemployed}", rule: "Flag (Mean €1072)" }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+};
+
+function drawTree(data, btn) {
+    if(btn) {
+        document.querySelectorAll('.tree-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+
+    const container = d3.select("#interactive-tree");
+    container.selectAll("*").remove();
+
+    const width = 900;
+    const height = 500;
+    const margin = {top: 20, right: 120, bottom: 20, left: 120};
+
+    const svg = container.append("svg")
+        .attr("width", "100%")
+        .attr("height", height)
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    const treemap = d3.tree().size([height - 40, width - 300]);
+
+    let root = d3.hierarchy(data, d => d.children);
+    root.x0 = height / 2;
+    root.y0 = 0;
+
+    function collapse(d) {
+        if(d.children) {
+            d._children = d.children;
+            d._children.forEach(collapse);
+            d.children = null;
+        }
+    }
+
+    if (root.children) root.children.forEach(collapse);
+
+    let i = 0;
+    update(root);
+
+    function update(source) {
+        const treeData = treemap(root);
+        const nodes = treeData.descendants();
+        const links = nodes.slice(1);
+
+        const levelWidth = {};
+nodes.forEach(d => {
+    levelWidth[d.depth] = (levelWidth[d.depth] || 0) + 1;
+});
+
+const maxDepth = d3.max(nodes, d => d.depth);
+const horizontalSpacing = 220;
+
+// dynamically size width
+const treeWidth = (maxDepth + 1) * horizontalSpacing;
+
+// update SVG width dynamically
+d3.select("#interactive-tree svg")
+    .attr("width", treeWidth + 200);
+
+// apply spacing
+nodes.forEach(d => {
+    d.y = d.depth * horizontalSpacing;
+});
+
+        const node = svg.selectAll('g.node')
+            .data(nodes, d => d.id || (d.id = ++i));
+
+        const nodeEnter = node.enter().append('g')
+            .attr('class', 'node')
+            .attr("transform", `translate(${source.y0},${source.x0})`)
+            .on('click', (event, d) => {
+                if (d.children) {
+                    d._children = d.children;
+                    d.children = null;
+                } else {
+                    d.children = d._children;
+                    d._children = null;
+                }
+                update(d);
+            });
+
+        // 🎨 colored nodes (safe)
+        nodeEnter.append('circle')
+            .attr('r', 1e-6)
+            .style("fill", d => getColor(d));
+
+        nodeEnter.append('text')
+            .attr("dy", "-1.2em")
+            .attr("x", d => d.children || d._children ? -12 : 12)
+            .attr("text-anchor", d => d.children || d._children ? "end" : "start")
+            .text(d => d.data.name);
+
+        nodeEnter.append('text')
+            .attr("dy", "1.2em")
+            .attr("x", d => d.children || d._children ? -12 : 12)
+            .attr("text-anchor", d => d.children || d._children ? "end" : "start")
+            .style("fill", "var(--cyan)")
+            .text(d => d.data.rule);
+
+        const nodeUpdate = nodeEnter.merge(node);
+
+        nodeUpdate.transition().duration(300)
+            .attr("transform", d => `translate(${d.y},${d.x})`);
+
+        nodeUpdate.select('circle')
+            .attr('r', 6)
+            .style("fill", d => getColor(d));
+
+        node.exit().remove();
+
+        const link = svg.selectAll('path.link')
+            .data(links, d => d.id);
+
+        link.enter().insert('path', "g")
+            .attr("class", "link")
+            .merge(link)
+            .transition().duration(300)
+            .attr('d', d => diagonal(d, d.parent));
+
+        link.exit().remove();
+
+        nodes.forEach(d => {
+            d.x0 = d.x;
+            d.y0 = d.y;
+        });
+
+        function diagonal(s, d) {
+            return `M ${s.y} ${s.x}
+                    C ${(s.y + d.y) / 2} ${s.x},
+                      ${(s.y + d.y) / 2} ${d.x},
+                      ${d.y} ${d.x}`;
+        }
+    }
+
+    // 🎨 SAFE COLOR LOGIC
+    function getColor(d) {
+        const r = d.data.rule || "";
+
+        if (r.includes("Retain")) return "#10B981";
+        if (r.includes("Monitor")) return "#06B6D4";
+        if (r.includes("Review")) return "#FACC15";
+        if (r.includes("Flag")) return "#EF4444";
+        if (r.includes("Extreme")) return "#7F1D1D";
+
+        return d._children ? "#E8A63B" : "#132539";
+    }
+}
+  
 /* ─── INIT ─── */
 window.addEventListener('DOMContentLoaded',()=>{
   setTimeout(buildTerrain, 60); // allow svg to get width
   buildSegTable();
   buildClusters();
   buildHeatmap();
+  drawTree(treeData8, null); // Adds the tree chart!
 });
 window.addEventListener('resize',()=>{
   const svg=document.getElementById('terrain-svg');
