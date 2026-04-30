@@ -1120,7 +1120,25 @@ function drawTree(data, btn) {
         const nodes = treeData.descendants();
         const links = nodes.slice(1);
 
-        nodes.forEach(d => d.y = d.depth * 180);
+        const levelWidth = {};
+nodes.forEach(d => {
+    levelWidth[d.depth] = (levelWidth[d.depth] || 0) + 1;
+});
+
+const maxDepth = d3.max(nodes, d => d.depth);
+const horizontalSpacing = 220;
+
+// dynamically size width
+const treeWidth = (maxDepth + 1) * horizontalSpacing;
+
+// update SVG width dynamically
+d3.select("#interactive-tree svg")
+    .attr("width", treeWidth + 200);
+
+// apply spacing
+nodes.forEach(d => {
+    d.y = d.depth * horizontalSpacing;
+});
 
         const node = svg.selectAll('g.node')
             .data(nodes, d => d.id || (d.id = ++i));
