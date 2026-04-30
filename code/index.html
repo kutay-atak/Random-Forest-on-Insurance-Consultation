@@ -192,7 +192,27 @@ footer{text-align:center;padding:28px 40px;font-family:'Fira Code',monospace;fon
     color: var(--gold);
     border-color: var(--gold);
 }
+/* ─── TREE UI UPGRADE ─── */
+.node circle {
+    stroke: #E8A63B;
+    stroke-width: 2px;
+    transition: all 0.25s;
+}
 
+.node:hover circle {
+    transform: scale(1.2);
+    filter: drop-shadow(0 0 6px rgba(232,166,59,0.6));
+}
+
+.link {
+    stroke: #1E3352;
+    stroke-width: 1.5px;
+}
+
+.tree-container {
+    min-height: 500px;
+    overflow: hidden;
+}
 
   
 </style>
@@ -1088,24 +1108,33 @@ function drawTree(data, btn) {
     const container = d3.select("#interactive-tree");
     container.selectAll("*").remove();
 
-    const width = containerNode.clientWidth || 800;
-    const height = 450;
-    const margin = {top: 20, right: 120, bottom: 20, left: 120};
+    const width = containerNode.clientWidth || 900;
+    const height = 500;
+
+    const margin = {top: 40, right: 120, bottom: 40, left: 120};
 
     const svg = container.append("svg")
         .attr("width", "100%")
-        .attr("height", height + margin.top + margin.bottom)
-        .attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
-        .append("g")
-        .attr("transform", `translate(${margin.left},${margin.top})`);
+        .attr("height", height)
+        .style("cursor", "grab");
 
-    const treemap = d3.tree().size([height, width - 200]);
+    // 🔥 ZOOM GROUP
+    const g = svg.append("g");
+
+    const zoom = d3.zoom()
+        .scaleExtent([0.5, 2])
+        .on("zoom", (event) => {
+            g.attr("transform", event.transform);
+        });
+
+    svg.call(zoom);
+
+    const treemap = d3.tree().nodeSize([60, 220]);
 
     let root = d3.hierarchy(data, d => d.children);
     root.x0 = height / 2;
     root.y0 = 0;
 
-    // ✅ Collapse all children initially
     function collapse(d) {
         if(d.children) {
             d._children = d.children;
@@ -1114,22 +1143,28 @@ function drawTree(data, btn) {
         }
     }
 
-    if (root.children) {
-        root.children.forEach(collapse);
-    }
+    if (root.children) root.children.forEach(collapse);
 
     let i = 0;
 
     update(root);
 
     function update(source) {
+
         const treeData = treemap(root);
         const nodes = treeData.descendants();
         const links = nodes.slice(1);
 
-        nodes.forEach(d => d.y = d.depth * 200);
+        nodes.forEach(d => d.y = d.depth * 220);
 
-        const node = svg.selectAll('g.node')
+        // AUTO HEIGHT based on nodes
+        const minX = d3.min(nodes, d => d.x);
+        const maxX = d3.max(nodes, d => d.x);
+        const treeHeight = maxX - minX + 100;
+
+        svg.attr("height", treeHeight);
+
+        const node = g.selectAll('g.node')
             .data(nodes, d => d.id || (d.id = ++i));
 
         const nodeEnter = node.enter().append('g')
@@ -1146,21 +1181,22 @@ function drawTree(data, btn) {
                 update(d);
             });
 
+        // 🎨 NODES
         nodeEnter.append('circle')
             .attr('r', 1e-6)
-            .style("fill", d => d._children ? "var(--gold)" : "var(--surface2)");
+            .style("fill", d => getNodeColor(d));
 
         nodeEnter.append('text')
             .attr("dy", "-1.2em")
-            .attr("x", d => d.children || d._children ? -13 : 13)
-            .attr("text-anchor", d => d.children || d._children ? "end" : "start")
+            .attr("text-anchor", "middle")
+            .style("font-size", "11px")
             .text(d => d.data.name);
 
         nodeEnter.append('text')
             .attr("dy", "1.2em")
-            .attr("x", d => d.children || d._children ? -13 : 13)
-            .attr("text-anchor", d => d.children || d._children ? "end" : "start")
-            .style("fill", "var(--cyan)")
+            .attr("text-anchor", "middle")
+            .style("fill", "#06B6D4")
+            .style("font-size", "10px")
             .text(d => d.data.rule);
 
         const nodeUpdate = nodeEnter.merge(node);
@@ -1169,40 +1205,34 @@ function drawTree(data, btn) {
             .attr("transform", d => `translate(${d.y},${d.x})`);
 
         nodeUpdate.select('circle')
-            .attr('r', 6)
-            .style("fill", d => d._children ? "var(--gold)" : "var(--surface2)");
+            .attr('r', 8)
+            .style("fill", d => getNodeColor(d));
 
-        const nodeExit = node.exit().transition().duration(300)
-            .attr("transform", `translate(${source.y},${source.x})`)
-            .remove();
+        node.exit().remove();
 
-        nodeExit.select('circle').attr('r', 1e-6);
-        nodeExit.select('text').style('fill-opacity', 1e-6);
-
-        const link = svg.selectAll('path.link')
+        // 🔗 LINKS
+        const link = g.selectAll('path.link')
             .data(links, d => d.id);
 
-        const linkEnter = link.enter().insert('path', "g")
+        link.enter().insert('path', "g")
             .attr("class", "link")
-            .attr('d', d => {
-                const o = {x: source.x0, y: source.y0};
-                return diagonal(o, o);
-            });
-
-        linkEnter.merge(link)
+            .attr('fill', 'none')
+            .attr('stroke', '#1E3352')
+            .attr('stroke-width', 1.5)
+            .merge(link)
             .transition().duration(300)
             .attr('d', d => diagonal(d, d.parent));
 
-        link.exit().transition().duration(300)
-            .attr('d', d => {
-                const o = {x: source.x, y: source.y};
-                return diagonal(o, o);
-            }).remove();
+        link.exit().remove();
 
         nodes.forEach(d => {
             d.x0 = d.x;
             d.y0 = d.y;
         });
+
+        // 🎯 CENTER TREE
+        const centerX = (minX + maxX) / 2;
+        svg.call(zoom.transform, d3.zoomIdentity.translate(80, height / 2 - centerX));
 
         function diagonal(s, d) {
             return `M ${s.y} ${s.x}
@@ -1211,11 +1241,20 @@ function drawTree(data, btn) {
                       ${d.y} ${d.x}`;
         }
     }
+
+    // 🎨 COLOR LOGIC
+    function getNodeColor(d) {
+        const rule = d.data.rule || "";
+
+        if (rule.includes("Retain")) return "#10B981";
+        if (rule.includes("Monitor")) return "#06B6D4";
+        if (rule.includes("Review")) return "#F59E0B";
+        if (rule.includes("Flag")) return "#EF4444";
+        if (rule.includes("Extreme")) return "#7F1D1D";
+
+        return d._children ? "#E8A63B" : "#132539";
+    }
 }
-
-
-
-
 
   
 /* ─── INIT ─── */
