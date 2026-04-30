@@ -149,7 +149,8 @@ footer{text-align:center;padding:28px 40px;font-family:'Fira Code',monospace;fon
     padding: 20px;
     margin-top: 20px;
     overflow-x: auto;
-    min-height: 480px; /*  ADD THIS */
+    min-height: 480px;
+    overflow-x: auto;/*  ADD THIS */
 }
 .node circle {
     fill: var(--surface2);
@@ -192,29 +193,7 @@ footer{text-align:center;padding:28px 40px;font-family:'Fira Code',monospace;fon
     color: var(--gold);
     border-color: var(--gold);
 }
-/* ─── TREE UI UPGRADE ─── */
-.node circle {
-    stroke: #E8A63B;
-    stroke-width: 2px;
-    transition: all 0.25s;
-}
 
-.node:hover circle {
-    transform: scale(1.2);
-    filter: drop-shadow(0 0 6px rgba(232,166,59,0.6));
-}
-
-.link {
-    stroke: #1E3352;
-    stroke-width: 1.5px;
-}
-
-.tree-container {
-    min-height: 500px;
-    overflow: hidden;
-}
-
-  
 </style>
 </head>
 <body>
@@ -1104,32 +1083,20 @@ function drawTree(data, btn) {
         btn.classList.add('active');
     }
 
-    const containerNode = document.getElementById("interactive-tree");
     const container = d3.select("#interactive-tree");
     container.selectAll("*").remove();
 
-    const width = containerNode.clientWidth || 900;
+    const width = 900;
     const height = 500;
-
-    const margin = {top: 40, right: 120, bottom: 40, left: 120};
+    const margin = {top: 20, right: 120, bottom: 20, left: 120};
 
     const svg = container.append("svg")
         .attr("width", "100%")
         .attr("height", height)
-        .style("cursor", "grab");
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
 
-    // 🔥 ZOOM GROUP
-    const g = svg.append("g");
-
-    const zoom = d3.zoom()
-        .scaleExtent([0.5, 2])
-        .on("zoom", (event) => {
-            g.attr("transform", event.transform);
-        });
-
-    svg.call(zoom);
-
-    const treemap = d3.tree().nodeSize([60, 220]);
+    const treemap = d3.tree().size([height - 40, width - 300]);
 
     let root = d3.hierarchy(data, d => d.children);
     root.x0 = height / 2;
@@ -1146,25 +1113,16 @@ function drawTree(data, btn) {
     if (root.children) root.children.forEach(collapse);
 
     let i = 0;
-
     update(root);
 
     function update(source) {
-
         const treeData = treemap(root);
         const nodes = treeData.descendants();
         const links = nodes.slice(1);
 
-        nodes.forEach(d => d.y = d.depth * 220);
+        nodes.forEach(d => d.y = d.depth * 180);
 
-        // AUTO HEIGHT based on nodes
-        const minX = d3.min(nodes, d => d.x);
-        const maxX = d3.max(nodes, d => d.x);
-        const treeHeight = maxX - minX + 100;
-
-        svg.attr("height", treeHeight);
-
-        const node = g.selectAll('g.node')
+        const node = svg.selectAll('g.node')
             .data(nodes, d => d.id || (d.id = ++i));
 
         const nodeEnter = node.enter().append('g')
@@ -1181,22 +1139,22 @@ function drawTree(data, btn) {
                 update(d);
             });
 
-        // 🎨 NODES
+        // 🎨 colored nodes (safe)
         nodeEnter.append('circle')
             .attr('r', 1e-6)
-            .style("fill", d => getNodeColor(d));
+            .style("fill", d => getColor(d));
 
         nodeEnter.append('text')
             .attr("dy", "-1.2em")
-            .attr("text-anchor", "middle")
-            .style("font-size", "11px")
+            .attr("x", d => d.children || d._children ? -12 : 12)
+            .attr("text-anchor", d => d.children || d._children ? "end" : "start")
             .text(d => d.data.name);
 
         nodeEnter.append('text')
             .attr("dy", "1.2em")
-            .attr("text-anchor", "middle")
-            .style("fill", "#06B6D4")
-            .style("font-size", "10px")
+            .attr("x", d => d.children || d._children ? -12 : 12)
+            .attr("text-anchor", d => d.children || d._children ? "end" : "start")
+            .style("fill", "var(--cyan)")
             .text(d => d.data.rule);
 
         const nodeUpdate = nodeEnter.merge(node);
@@ -1205,20 +1163,16 @@ function drawTree(data, btn) {
             .attr("transform", d => `translate(${d.y},${d.x})`);
 
         nodeUpdate.select('circle')
-            .attr('r', 8)
-            .style("fill", d => getNodeColor(d));
+            .attr('r', 6)
+            .style("fill", d => getColor(d));
 
         node.exit().remove();
 
-        // 🔗 LINKS
-        const link = g.selectAll('path.link')
+        const link = svg.selectAll('path.link')
             .data(links, d => d.id);
 
         link.enter().insert('path', "g")
             .attr("class", "link")
-            .attr('fill', 'none')
-            .attr('stroke', '#1E3352')
-            .attr('stroke-width', 1.5)
             .merge(link)
             .transition().duration(300)
             .attr('d', d => diagonal(d, d.parent));
@@ -1230,10 +1184,6 @@ function drawTree(data, btn) {
             d.y0 = d.y;
         });
 
-        // 🎯 CENTER TREE
-        const centerX = (minX + maxX) / 2;
-        svg.call(zoom.transform, d3.zoomIdentity.translate(80, height / 2 - centerX));
-
         function diagonal(s, d) {
             return `M ${s.y} ${s.x}
                     C ${(s.y + d.y) / 2} ${s.x},
@@ -1242,20 +1192,19 @@ function drawTree(data, btn) {
         }
     }
 
-    // 🎨 COLOR LOGIC
-    function getNodeColor(d) {
-        const rule = d.data.rule || "";
+    // 🎨 SAFE COLOR LOGIC
+    function getColor(d) {
+        const r = d.data.rule || "";
 
-        if (rule.includes("Retain")) return "#10B981";
-        if (rule.includes("Monitor")) return "#06B6D4";
-        if (rule.includes("Review")) return "#F59E0B";
-        if (rule.includes("Flag")) return "#EF4444";
-        if (rule.includes("Extreme")) return "#7F1D1D";
+        if (r.includes("Retain")) return "#10B981";
+        if (r.includes("Monitor")) return "#06B6D4";
+        if (r.includes("Review")) return "#F59E0B";
+        if (r.includes("Flag")) return "#EF4444";
+        if (r.includes("Extreme")) return "#7F1D1D";
 
         return d._children ? "#E8A63B" : "#132539";
     }
 }
-
   
 /* ─── INIT ─── */
 window.addEventListener('DOMContentLoaded',()=>{
