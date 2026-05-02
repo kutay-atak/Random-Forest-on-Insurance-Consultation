@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AGEAS · Portfolio Risk Intelligence</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Fira+Code:wght@300;400;500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060C18;--surface:#0D1B2E;--surface2:#132539;--border:#1E3352;
+  --gold:#E8A63B;--teal:#2DD4BF;--cyan:#06B6D4;
+  --text:#EDE8E0;--muted:#6B7F96;
+  --retain:#10B981;--monitor:#F59E0B;--flag:#F97316;--alert:#EF4444;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+
+/* ─── Header ─── */
+header{
+  background:linear-gradient(135deg,#060C18 0%,#0D1E38 60%,#060C18 100%);
+  border-bottom:1px solid var(--border);padding:20px 40px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:200;backdrop-filter:blur(20px);
+}
+.logo{font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:600;letter-spacing:2.5px;color:var(--gold);text-transform:uppercase}
+.logo span{color:var(--text);font-weight:400;opacity:.7}
+.header-meta{font-family:'Fira Code',monospace;font-size:10px;color:var(--muted);text-align:right;line-height:1.7}
+
+/* ─── Nav ─── */
+nav{background:var(--surface);border-bottom:1px solid var(--border);padding:0 40px;display:flex;gap:0;overflow-x:auto}
+.tab{padding:13px 22px;font-size:12px;font-weight:500;letter-spacing:.5px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+
+/* ─── Main ─── */
+main{padding:36px 40px;max-width:1180px;margin:0 auto}
+.section{display:none;animation:fadeUp .35s ease forwards}
+.section.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+/* ─── KPI row ─── */
+.kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:32px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:22px;position:relative;overflow:hidden}
+.kpi-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.kpi-gold::after{background:var(--gold)}
+.kpi-teal::after{background:var(--teal)}
+.kpi-red::after{background:var(--alert)}
+.kpi-label{font-family:'Fira Code',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.8px;color:var(--muted);margin-bottom:7px}
+.kpi-value{font-family:'Cormorant Garamond',serif;font-size:44px;font-weight:700;line-height:1;margin-bottom:3px}
+.kpi-gold .kpi-value{color:var(--gold)}
+.kpi-teal .kpi-value{color:var(--teal)}
+.kpi-red .kpi-value{color:var(--alert)}
+.kpi-sub{font-size:12px;color:var(--muted)}
+
+/* ─── Chart containers ─── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:28px;margin-bottom:22px}
+.card-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;margin-bottom:3px}
+.card-sub{font-size:12px;color:var(--muted);margin-bottom:22px;line-height:1.5}
+
+/* ─── Terrain ─── */
+#terrain-svg{width:100%;height:300px;display:block;cursor:crosshair}
+#terrain-tooltip{
+  position:fixed;background:rgba(13,27,46,.97);border:1px solid var(--border);
+  padding:10px 14px;border-radius:6px;font-size:12px;pointer-events:none;
+  display:none;z-index:999;line-height:1.7;min-width:160px;
+  box-shadow:0 8px 32px rgba(0,0,0,.5);
+}
+.legend-row{display:flex;gap:16px;margin-top:14px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-family:'Fira Code',monospace}
+.legend-swatch{width:12px;height:12px;border-radius:2px;flex-shrink:0}
+
+/* ─── Segment table ─── */
+.seg-table{width:100%;border-collapse:collapse;margin-top:16px}
+.seg-table th{font-family:'Fira Code',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
+.seg-table td{padding:9px 10px;font-size:13px;border-bottom:1px solid rgba(30,51,82,.4);vertical-align:middle}
+.seg-table tr:hover td{background:rgba(255,255,255,.02)}
+.badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.8px;font-family:'Fira Code',monospace}
+.badge-retain{background:rgba(16,185,129,.12);color:#10B981;border:1px solid rgba(16,185,129,.25)}
+.badge-monitor{background:rgba(245,158,11,.12);color:#F59E0B;border:1px solid rgba(245,158,11,.25)}
+.badge-flag{background:rgba(249,115,22,.12);color:#F97316;border:1px solid rgba(249,115,22,.25)}
+
+/* ─── Section headers ─── */
+.sec-head{margin-bottom:28px}
+.eyebrow{font-family:'Fira Code',monospace;font-size:10px;text-transform:uppercase;letter-spacing:2.5px;color:var(--gold);margin-bottom:6px}
+.sec-head h2{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;margin-bottom:6px}
+.sec-head p{font-size:13px;color:var(--muted);line-height:1.65;max-width:620px}
+
+/* ─── Insights ─── */
+.insight-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+.insight{background:var(--surface2);border-left:3px solid;border-radius:4px;padding:14px 16px;font-size:12px;line-height:1.55}
+.insight strong{display:block;font-size:13px;margin-bottom:5px}
+.insight.neg{border-color:var(--alert)}
+.insight.pos{border-color:var(--teal)}
+.insight.neu{border-color:var(--gold)}
+
+/* ─── Cluster cards ─── */
+.band-block{margin-bottom:28px}
+.band-head{font-family:'Fira Code',monospace;font-size:10px;text-transform:uppercase;letter-spacing:2px;padding:5px 0;border-bottom:1px solid var(--border);margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.band-desc{color:var(--muted);font-weight:400;font-size:10px;letter-spacing:.5px;text-transform:none}
+.cluster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.cluster-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;transition:transform .2s,box-shadow .2s;cursor:default}
+.cluster-card:hover{transform:translateY(-3px);box-shadow:0 12px 36px rgba(0,0,0,.35)}
+.cc-bar{height:3px;border-radius:2px;margin-bottom:13px}
+.cc-id{font-family:'Fira Code',monospace;font-size:10px;color:var(--muted);margin-bottom:5px}
+.cc-loss{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:700;line-height:1;margin-bottom:11px}
+.cc-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.cc-tag{font-size:10px;padding:2px 6px;background:var(--surface2);border-radius:3px;color:var(--muted);font-family:'Fira Code',monospace}
+.cc-foot{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding-top:9px;border-top:1px solid var(--border)}
+
+/* ─── Heatmap ─── */
+.hm-controls{display:flex;gap:20px;margin-bottom:22px;flex-wrap:wrap;align-items:flex-end}
+.ctrl-grp{display:flex;flex-direction:column;gap:6px}
+.ctrl-label{font-family:'Fira Code',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted)}
+.ctrl-btns{display:flex;gap:4px;flex-wrap:wrap}
+.ctrl-btn{padding:5px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-family:'Fira Code',monospace;font-size:11px;cursor:pointer;transition:all .15s}
+.ctrl-btn.active{background:rgba(232,166,59,.1);border-color:var(--gold);color:var(--gold)}
+.ctrl-btn:hover:not(.active){color:var(--text);border-color:#2D4464}
+
+.hm-grid{display:grid;grid-template-columns:70px repeat(3,1fr);gap:5px;max-width:680px}
+.hm-col-head{font-family:'Fira Code',monospace;font-size:10px;text-align:center;color:var(--muted);padding:6px 2px;letter-spacing:.5px}
+.hm-row-label{display:flex;align-items:center;font-size:13px;font-weight:500;color:var(--text)}
+.hm-cell{padding:14px 8px;border-radius:6px;text-align:center;position:relative;transition:transform .15s,box-shadow .15s;cursor:default}
+.hm-cell:hover{transform:scale(1.04);box-shadow:0 6px 20px rgba(0,0,0,.4);z-index:10}
+.cell-val{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700;display:block;line-height:1}
+.cell-sub{font-size:9px;text-transform:uppercase;letter-spacing:.7px;margin-top:3px;opacity:.7;font-family:'Fira Code',monospace}
+.sparse-tag{position:absolute;top:3px;right:5px;font-size:7px;color:rgba(255,255,255,.4);font-family:'Fira Code',monospace}
+.hm-legend{display:flex;align-items:center;gap:10px;margin-top:16px}
+.hm-legend-bar{width:120px;height:7px;border-radius:4px;background:linear-gradient(to right,#06D6A0,#F59E0B,#DC2626)}
+.hm-legend-label{font-size:10px;color:var(--muted);font-family:'Fira Code',monospace}
+
+footer{text-align:center;padding:28px 40px;font-family:'Fira Code',monospace;font-size:10px;color:var(--muted);border-top:1px solid var(--border);margin-top:48px;letter-spacing:.5px}
+
+@media(max-width:720px){
+  main{padding:20px}
+  header{padding:14px 20px}
+  nav{padding:0 16px}
+  .kpi-row{grid-template-columns:1fr}
+  .insight-grid{grid-template-columns:1fr}
+}
+
+/* ─── Tree Visualization ─── */
+.tree-container {
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+    overflow-x: auto;
+    min-height: 480px;
+    overflow-x: auto;/*  ADD THIS */
+}
+.node circle {
+    fill: var(--surface2);
+    stroke: var(--gold);
+    stroke-width: 1.2px;
+    cursor: pointer;
+    transition: fill 0.3s;
+}
+.node circle:hover {
+    fill: var(--gold);
+}
+.node text {
+    font-family: 'Fira Code', monospace;
+    font-size: 11px;
+    fill: var(--text);
+}
+.link {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 1.5px;
+}
+.tree-controls {
+    margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
+}
+.tree-btn {
+    background-color: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+.tree-btn.active {
+    background-color: rgba(232,166,59,.1);
+    color: var(--gold);
+    border-color: var(--gold);
+}
+
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">AGEAS <span>/ Portfolio Risk Intelligence</span></div>
+  </div>
+  <div class="header-meta">Confidential · 2026-04-29<br>24,774 policyholders · 5 methods</div>
+</header>
+
+<nav>
+  <div class="tab active"   onclick="showTab(0)">Portfolio Landscape</div>
+  <div class="tab"          onclick="showTab(1)">Loss Drivers</div>
+  <div class="tab"          onclick="showTab(2)">Risk Profiles</div>
+  <div class="tab"          onclick="showTab(3)">Cell Deep Dive</div>
+</nav>
+
+<main>
+
+<!-- ══════════ TAB 0 · Portfolio Landscape ══════════ -->
+<div class="section active" id="tab-0">
+
+  <div class="kpi-row">
+    <div class="kpi-card kpi-gold">
+      <div class="kpi-label">Portfolio Avg Loss</div>
+      <div class="kpi-value">€427</div>
+      <div class="kpi-sub">per policyholder per year</div>
+    </div>
+    <div class="kpi-card kpi-teal">
+      <div class="kpi-label">Total Policyholders</div>
+      <div class="kpi-value">24,774</div>
+      <div class="kpi-sub">across 10 renewal tiers</div>
+    </div>
+    <div class="kpi-card kpi-red">
+      <div class="kpi-label">Tail Risk — Tiers 6–10</div>
+      <div class="kpi-value">7%</div>
+      <div class="kpi-sub">of customers · 2–5× portfolio avg</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">The Risk Terrain</div>
+    <div class="card-sub">Each column is a risk tier. Column <b>width</b> = share of customers. Column <b>height</b> = average expected loss. Hover for details.</div>
+    <div id="terrain-tooltip"></div>
+    <svg id="terrain-svg"></svg>
+    <div class="legend-row">
+      <div class="legend-item"><div class="legend-swatch" style="background:#10B981"></div>Retain at current terms</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#F59E0B"></div>Monitor</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:linear-gradient(90deg,#F97316,#991B1B)"></div>Flag for renewal review</div>
+      <div class="legend-item" style="margin-left:auto">
+        <svg width="28" height="12"><line x1="0" y1="6" x2="28" y2="6" stroke="#E8A63B" stroke-width="1" stroke-dasharray="4,3"/></svg>
+        Portfolio avg €427
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Segment Summary</div>
+    <div class="card-sub">10 tiers produced by Method 5 (Surrogate Tree) — each maps to a distinct renewal action.</div>
+    <table class="seg-table">
+      <thead>
+        <tr>
+          <th>Tier</th><th>Customers</th><th>Share</th>
+          <th>Avg Loss</th><th>vs Portfolio</th><th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="seg-tbody"></tbody>
+    </table>
+  </div>
+<div class="card">
+    <div class="card-title">Surrogate Tree Model</div>
+    <div class="card-sub">Interactive logic showing how the 10 tiers are derived. Click the nodes to expand or collapse branches.</div>
+    <div class="tree-controls">
+        <button class="tree-btn active" onclick="drawTree(treeData8, this)">8-Leaf Model</button>
+        <button class="tree-btn" onclick="drawTree(treeData24, this)">24-Leaf Model</button>
+    </div>
+    <div id="interactive-tree" class="tree-container"></div>
+  </div>
+</div>
+
+<!-- ══════════ TAB 1 · Loss Drivers ══════════ -->
+<div class="section" id="tab-1">
+
+  <div class="sec-head">
+    <div class="eyebrow">Log-OLS Regression · Method 1 Score</div>
+    <h2>What Drives Expected Loss</h2>
+    <p>Effect of each factor on expected loss, all else held equal. Numeric features show the impact of a one standard-deviation increase. Reference: Female · Employed · CarType A · Cover 1 · Year 2009.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Impact on Expected Loss (%)</div>
+    <div class="card-sub">Right of zero = increases loss · Left of zero = decreases loss</div>
+    <div style="position:relative;height:440px"><canvas id="tornado-chart"></canvas></div>
+  </div>
+
+  <div class="insight-grid">
+    <div class="insight neg">
+      <strong>🔴 Unemployment compounds severely</strong>
+      Being unemployed adds +35% expected loss vs employed customers. Combined with youth, it drives some customers to 4–5× the portfolio average.
+    </div>
+    <div class="insight neg">
+      <strong>🔴 Urban density is the hidden driver</strong>
+      A one-SD rise in area density raises expected loss by +32%. Dense postcodes correlate with both higher frequency and severity.
+    </div>
+    <div class="insight neg">
+      <strong>🔴 Gender and cover gaps</strong>
+      Male policyholders carry +24% over female. Customers without cover (cover=0) add a further +20% — both are actionable at underwriting.
+    </div>
+    <div class="insight pos">
+      <strong>🟢 Age is the strongest protector</strong>
+      Each additional year of age reduces expected loss by ~2.4%. A 50-year-old is roughly 47% lower-risk than a 25-year-old, all else equal.
+    </div>
+    <div class="insight pos">
+      <strong>🟢 Tenure rewards loyalty</strong>
+      Each year with AEGAS reduces expected loss by ~1.6%. Long-tenured customers self-select into lower risk — factor into retention pricing.
+    </div>
+    <div class="insight neu">
+      <strong>🟡 Car type plays a secondary role</strong>
+      CarType D reduces loss by 9% vs the riskier Type A reference. Car value matters less than demographic factors (+3.7% per SD).
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════ TAB 2 · Risk Profiles ══════════ -->
+<div class="section" id="tab-2">
+
+  <div class="sec-head">
+    <div class="eyebrow">Method 3 · Risk Bands + K-Means Clustering</div>
+    <h2>Eight Customer Profiles</h2>
+    <p>Customers first sorted into four risk bands by expected loss, then clustered demographically within each band. The key question answered: within a risk tier, <em>who</em> are these customers?</p>
+  </div>
+
+  <div id="clusters-container"></div>
+
+</div>
+
+<!-- ══════════ TAB 3 · Cell Deep Dive ══════════ -->
+<div class="section" id="tab-3">
+
+  <div class="sec-head">
+    <div class="eyebrow">Method 2 · Covariate Cells (60-cell grid)</div>
+    <h2>Expected Loss by Demographic Cell</h2>
+    <p>Historical average expected loss by gender, age group, cover type, and car type. The most transparent, auditable view — cells with fewer than 30 severity observations are flagged as sparse.</p>
+  </div>
+
+  <div class="card">
+    <div class="hm-controls">
+      <div class="ctrl-grp">
+        <div class="ctrl-label">Cover</div>
+        <div class="ctrl-btns" id="cover-btns">
+          <button class="ctrl-btn active" onclick="setCover('1',this)">Cover 1 (with cover)</button>
+          <button class="ctrl-btn"        onclick="setCover('0',this)">Cover 0 (no cover)</button>
+        </div>
+      </div>
+      <div class="ctrl-grp">
+        <div class="ctrl-label">Car Type</div>
+        <div class="ctrl-btns" id="cartype-btns">
+          <button class="ctrl-btn active" onclick="setCarType('A',this)">A</button>
+          <button class="ctrl-btn"        onclick="setCarType('B',this)">B</button>
+          <button class="ctrl-btn"        onclick="setCarType('C',this)">C</button>
+          <button class="ctrl-btn"        onclick="setCarType('D',this)">D</button>
+          <button class="ctrl-btn"        onclick="setCarType('E',this)">E</button>
+        </div>
+      </div>
+    </div>
+    <div class="hm-grid" id="heatmap"></div>
+    <div class="hm-legend">
+      <div class="hm-legend-bar"></div>
+      <div class="hm-legend-label">Low risk → High risk</div>
+      <div class="hm-legend-label" style="margin-left:18px">* sparse cell (n&lt;30 severity obs.)</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">All 60 Cells — Sorted by Expected Loss</div>
+    <div class="card-sub">Worst cell: €856 (no cover · CarType A · Male · ≤30). Best cell: €140 (cover 1 · CarType B · Female · >55).</div>
+    <div style="position:relative;height:280px"><canvas id="cells-bar"></canvas></div>
+  </div>
+
+</div>
+</main>
+
+<footer>AGEAS Portfolio Risk Intelligence &mdash; Confidential &mdash; Methods: ScoreFusion · CovariateCells · RiskBandsClustering · TreeSegmentation · SurrogateTree</footer>
+
+<!-- ══════════ SCRIPTS ══════════ -->
+<script>
+/* ─── DATA ─── */
+const PMEAN = 427;
+const TOTAL = 24774;
+
+const segs = [
+  {id:1,n:6711, loss:207,  contrib:1387648, action:"retain"},
+  {id:2,n:10745,loss:343,  contrib:3688012, action:"retain"},
+  {id:3,n:2756, loss:534,  contrib:1471496, action:"monitor"},
+  {id:4,n:934,  loss:677,  contrib:632577,  action:"flag for review"},
+  {id:5,n:1910, loss:766,  contrib:1463451, action:"flag for review"},
+  {id:6,n:442,  loss:925,  contrib:408979,  action:"flag for review"},
+  {id:7,n:1038, loss:1143, contrib:1186489, action:"flag for review"},
+  {id:8,n:148,  loss:1277, contrib:189037,  action:"flag for review"},
+  {id:9,n:42,   loss:1433, contrib:60206,   action:"flag for review"},
+  {id:10,n:48,  loss:2056, contrib:98679,   action:"flag for review"},
+];
+
+const clusters = [
+  {id:"Low_0",       band:"Low",          n:3711, pct:59.9, gender:"Male",job:"Employed",  carType:"D", age:41.4, loss:176},
+  {id:"Low_1",       band:"Low",          n:2483, pct:40.1, gender:"Male",job:"Retired",   carType:"A", age:60.4, loss:165},
+  {id:"Medium_0",    band:"Medium",       n:3731, pct:60.3, gender:"Male",job:"Employed",  carType:"A", age:37.6, loss:275},
+  {id:"Medium_1",    band:"Medium",       n:2462, pct:39.8, gender:"Male",job:"Housewife", carType:"A", age:51.4, loss:279},
+  {id:"MedHigh_0",   band:"Medium-High",  n:3200, pct:51.7, gender:"Male",job:"Employed",  carType:"A", age:44.1, loss:414},
+  {id:"MedHigh_1",   band:"Medium-High",  n:2993, pct:48.3, gender:"Male",job:"Employed",  carType:"A", age:27.7, loss:427},
+  {id:"High_0",      band:"High",         n:3190, pct:51.5, gender:"Male",job:"Employed",  carType:"A", age:29.5, loss:895},
+  {id:"High_1",      band:"High",         n:3004, pct:48.5, gender:"Male",job:"Unemployed",carType:"A", age:22.2, loss:784},
+];
+
+const method6Data = [
+    { id: 1, n: 6711, loss: 206.77, total: 1387647 },
+    { id: 2, n: 4240, loss: 278.59, total: 1181218 },
+    { id: 3, n: 3811, loss: 363.10, total: 1383777 },
+    { id: 4, n: 1717, loss: 412.27, total: 707865 },
+    { id: 5, n: 977, loss: 424.92, total: 415149 },
+    { id: 6, n: 565, loss: 496.12, total: 280310 },
+    { id: 7, n: 272, loss: 507.19, total: 137956 },
+    { id: 8, n: 981, loss: 538.01, total: 527789 },
+    { id: 9, n: 938, loss: 560.17, total: 525440 },
+    { id: 10, n: 934, loss: 677.28, total: 632577 },
+    { id: 11, n: 992, loss: 756.81, total: 750753 },
+    { id: 12, n: 517, loss: 758.00, total: 391888 },
+    { id: 13, n: 262, loss: 778.16, total: 203877 },
+    { id: 14, n: 139, loss: 841.23, total: 116931 },
+    { id: 15, n: 219, loss: 918.19, total: 201082 },
+    { id: 16, n: 223, loss: 932.27, total: 207896 },
+    { id: 17, n: 325, loss: 1072.12, total: 348437 },
+    { id: 18, n: 453, loss: 1172.02, total: 530926 },
+    { id: 19, n: 260, loss: 1181.25, total: 307124 },
+    { id: 20, n: 148, loss: 1277.28, total: 189037 },
+    { id: 21, n: 42, loss: 1433.48, total: 60206 },
+    { id: 22, n: 35, loss: 1785.55, total: 62494 },
+    { id: 23, n: 12, loss: 2443.98, total: 29327 },
+    { id: 24, n: 1, loss: 6856.99, total: 6856 }
+];
+
+const tornado = [
+  {label:"Age +1 SD",       value:-29.0, type:"numeric"},
+  {label:"CarType D",       value:-9.1,  type:"cat"},
+  {label:"Tenure +1 SD",   value:-7.3,  type:"numeric"},
+  {label:"CarType E",       value:-5.3,  type:"cat"},
+  {label:"CarType C",       value:-2.5,  type:"cat"},
+  {label:"Car value +1 SD", value:3.7,   type:"numeric"},
+  {label:"Retired",         value:6.2,   type:"cat"},
+  {label:"Year 2010",       value:9.0,   type:"cat"},
+  {label:"No cover",        value:20.0,  type:"cat"},
+  {label:"Male",            value:24.2,  type:"cat"},
+  {label:"Density +1 SD",  value:32.3,  type:"numeric"},
+  {label:"Unemployed",      value:35.2,  type:"cat"},
+].sort((a,b) => a.value - b.value);
+
+const cellData = {
+  "1":{
+    "A":{Female:{"<=30":417,"31-55":229,">55":227},Male:{"<=30":677,"31-55":293,">55":247}},
+    "B":{Female:{"<=30":537,"31-55":295,">55":140},Male:{"<=30":692,"31-55":343,">55":247}},
+    "C":{Female:{"<=30":423,"31-55":266,">55":257},Male:{"<=30":571,"31-55":267,">55":269}},
+    "D":{Female:{"<=30":397,"31-55":251,">55":173},Male:{"<=30":621,"31-55":285,">55":254}},
+    "E":{Female:{"<=30":572,"31-55":259,">55":215},Male:{"<=30":614,"31-55":274,">55":243}},
+  },
+  "0":{
+    "A":{Female:{"<=30":641,"31-55":341,">55":274},Male:{"<=30":856,"31-55":347,">55":246}},
+    "B":{Female:{"<=30":657,"31-55":280,">55":238},Male:{"<=30":816,"31-55":341,">55":243}},
+    "C":{Female:{"<=30":542,"31-55":376,">55":296},Male:{"<=30":752,"31-55":354,">55":317}},
+    "D":{Female:{"<=30":511,"31-55":248,">55":331},Male:{"<=30":782,"31-55":314,">55":216}},
+    "E":{Female:{"<=30":564,"31-55":262,">55":222},Male:{"<=30":802,"31-55":357,">55":203}},
+  }
+};
+
+const sparse = new Set(["0|A|Female|>55","0|C|Female|>55"]);
+
+const BAND_COLOR = {"Low":"#10B981","Medium":"#06B6D4","Medium-High":"#F59E0B","High":"#EF4444"};
+const BAND_DESC  = {
+  "Low":         "Low-risk, loyal. Retain at standard terms.",
+  "Medium":      "Core portfolio. Monitor for drift.",
+  "Medium-High": "Approaching review threshold — watch closely.",
+  "High":        "Elevated expected loss — renewal review candidates.",
+};
+
+/* ─── TAB SWITCH ─── */
+function showTab(i){
+  document.querySelectorAll('.section').forEach((s,j)=>s.classList.toggle('active',j===i));
+  document.querySelectorAll('.tab').forEach((t,j)=>t.classList.toggle('active',j===i));
+  if(i===1 && !window._tBt){buildTornado();window._tBt=true}
+  if(i===3 && !window._cBt){buildCellsBar();window._cBt=true}
+}
+
+/* ─── TERRAIN SVG ─── */
+function buildTerrain(){
+  const svg = document.getElementById('terrain-svg');
+  const tip = document.getElementById('terrain-tooltip');
+  svg.innerHTML='';
+  const W=svg.clientWidth||900, H=300;
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+
+  const PL=52,PR=10,PT=18,PB=40;
+  const CW=W-PL-PR, CH=H-PT-PB;
+  const MAX_LOSS=2150;
+
+  // defs
+  const defs=el('defs'); svg.appendChild(defs);
+
+  // gridlines + y labels
+  [0,500,1000,1500,2000].forEach(v=>{
+    const y=PT+CH-(v/MAX_LOSS)*CH;
+    const g=el('line');
+    g.setAttribute('x1',PL);g.setAttribute('x2',PL+CW);
+    g.setAttribute('y1',y);g.setAttribute('y2',y);
+    g.setAttribute('stroke','#1E3352');g.setAttribute('stroke-width','1');
+    svg.appendChild(g);
+    if(v>0){
+      const t=el('text');
+      t.setAttribute('x',PL-6);t.setAttribute('y',y+4);
+      t.setAttribute('text-anchor','end');t.setAttribute('fill','#4B6280');
+      t.setAttribute('font-size','9');t.setAttribute('font-family',"'Fira Code',monospace");
+      t.textContent='€'+v;svg.appendChild(t);
+    }
+  });
+
+  // portfolio mean line
+  const mY=PT+CH-(PMEAN/MAX_LOSS)*CH;
+  const ml=el('line');
+  ml.setAttribute('x1',PL);ml.setAttribute('x2',PL+CW);
+  ml.setAttribute('y1',mY);ml.setAttribute('y2',mY);
+  ml.setAttribute('stroke','#E8A63B');ml.setAttribute('stroke-width','1');
+  ml.setAttribute('stroke-dasharray','5,3');
+  svg.appendChild(ml);
+
+  const mlT=el('text');
+  mlT.setAttribute('x',PL+CW-4);mlT.setAttribute('y',mY-5);
+  mlT.setAttribute('text-anchor','end');mlT.setAttribute('fill','#E8A63B');
+  mlT.setAttribute('font-size','9');mlT.setAttribute('font-family',"'Fira Code',monospace");
+  mlT.textContent='Portfolio avg €427';
+  svg.appendChild(mlT);
+
+  // flag color ramp
+  const flagRamp=['#FB923C','#F97316','#EF4444','#DC2626','#B91C1C','#991B1B','#7F1D1D'];
+  let fi=0;
+
+  let xc=PL;
+  segs.forEach(s=>{
+    const bw=(s.n/TOTAL)*CW;
+    const bh=(s.loss/MAX_LOSS)*CH;
+    const x=xc, y=PT+CH-bh;
+    let fill=s.action==='retain'?'#10B981':s.action==='monitor'?'#F59E0B':flagRamp[Math.min(fi++,6)];
+
+    // gradient
+    const gid='g'+s.id;
+    const gr=el('linearGradient');
+    gr.setAttribute('id',gid);gr.setAttribute('x1','0');gr.setAttribute('y1','0');
+    gr.setAttribute('x2','0');gr.setAttribute('y2','1');
+    const s1=el('stop');s1.setAttribute('offset','0%');s1.setAttribute('stop-color',fill);s1.setAttribute('stop-opacity','1');
+    const s2=el('stop');s2.setAttribute('offset','100%');s2.setAttribute('stop-color',fill);s2.setAttribute('stop-opacity','.65');
+    gr.appendChild(s1);gr.appendChild(s2);defs.appendChild(gr);
+
+    const r=el('rect');
+    r.setAttribute('x',x);r.setAttribute('y',y);
+    r.setAttribute('width',Math.max(bw-2,1));r.setAttribute('height',bh);
+    r.setAttribute('fill',`url(#${gid})`);r.setAttribute('rx','2');
+    r.style.cursor='pointer';r.style.transition='opacity .15s';
+
+    r.addEventListener('mouseenter',e=>{
+      r.style.opacity='.8';
+      tip.style.display='block';
+      const vsP=((s.loss/PMEAN-1)*100).toFixed(0);
+      const vsSign=vsP>=0?'+':'';
+      const ac=s.action==='retain'?'#10B981':s.action==='monitor'?'#F59E0B':fill;
+      tip.innerHTML=`
+        <div style="font-family:'Fira Code',monospace;color:#E8A63B;font-size:10px;letter-spacing:1px;margin-bottom:5px">TIER ${s.id}</div>
+        <div style="font-size:16px;font-family:'Cormorant Garamond',serif;font-weight:700;color:#EDE8E0">€${s.loss.toLocaleString()}</div>
+        <div style="color:#6B7F96;font-size:11px">${vsSign}${vsP}% vs portfolio avg</div>
+        <div style="color:#6B7F96;font-size:11px;margin-top:4px">${s.n.toLocaleString()} customers (${(100*s.n/TOTAL).toFixed(1)}%)</div>
+        <div style="color:#6B7F96;font-size:11px">Total: €${(s.contrib/1e6).toFixed(2)}M</div>
+        <div style="margin-top:7px;color:${ac};font-size:10px;font-family:'Fira Code',monospace;text-transform:uppercase;letter-spacing:1px">${s.action}</div>
+      `;
+    });
+    r.addEventListener('mousemove',e=>{
+      tip.style.left=(e.clientX+0)+'px';
+      tip.style.top=(e.clientY-6)+'px';
+    });
+    r.addEventListener('mouseleave',()=>{r.style.opacity='1';tip.style.display='none'});
+    svg.appendChild(r);
+
+    // tier label
+    const lbl=el('text');
+    lbl.setAttribute('x',x+bw/2);lbl.setAttribute('y',PT+CH+16);
+    lbl.setAttribute('text-anchor','middle');lbl.setAttribute('fill','#4B6280');
+    lbl.setAttribute('font-size','9');lbl.setAttribute('font-family',"'Fira Code',monospace");
+    lbl.textContent=s.id;svg.appendChild(lbl);
+
+    // loss label inside bar if tall enough
+    if(bh>28){
+      const ll=el('text');
+      ll.setAttribute('x',x+bw/2);ll.setAttribute('y',y+13);
+      ll.setAttribute('text-anchor','middle');ll.setAttribute('fill','rgba(237,232,224,.85)');
+      ll.setAttribute('font-size','9');ll.setAttribute('font-family',"'Fira Code',monospace");
+      ll.textContent='€'+s.loss;svg.appendChild(ll);
+    }
+
+    xc+=bw;
+  });
+
+  // x axis caption
+  const xc2=el('text');
+  xc2.setAttribute('x',PL+CW/2);xc2.setAttribute('y',H-4);
+  xc2.setAttribute('text-anchor','middle');xc2.setAttribute('fill','#3B5270');
+  xc2.setAttribute('font-size','9');xc2.setAttribute('font-family',"'Fira Code',monospace");
+  xc2.textContent='← column width = share of customers   |   tier number →';
+  svg.appendChild(xc2);
+}
+
+function el(tag){return document.createElementNS('http://www.w3.org/2000/svg',tag)}
+
+/* ─── SEGMENT TABLE ─── */
+function buildSegTable(){
+  const tb=document.getElementById('seg-tbody');
+  segs.forEach(s=>{
+    const pct=(100*s.n/TOTAL).toFixed(1);
+    const vs=((s.loss/PMEAN-1)*100).toFixed(0);
+    const vsSign=vs>=0?'+':'';
+    const ac=s.action;
+    const cls=ac==='retain'?'badge-retain':ac==='monitor'?'badge-monitor':'badge-flag';
+    const barW=Math.min((s.loss/2100)*130,130);
+    const barColor=s.loss<400?'#10B981':s.loss<700?'#06B6D4':s.loss<1000?'#F59E0B':s.loss<1400?'#F97316':'#EF4444';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><span style="font-family:'Fira Code',monospace;font-size:12px;color:var(--gold)">${s.id}</span></td>
+      <td style="font-family:'Fira Code',monospace;font-size:12px">${s.n.toLocaleString()}</td>
+      <td style="font-family:'Fira Code',monospace;font-size:12px;color:var(--muted)">${pct}%</td>
+      <td>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:700">€${s.loss.toLocaleString()}</div>
+        <div style="height:3px;width:${barW}px;background:${barColor};border-radius:2px;margin-top:4px"></div>
+      </td>
+      <td style="font-family:'Fira Code',monospace;font-size:12px;color:${parseFloat(vs)>=0?'#F97316':'#10B981'}">${vsSign}${vs}%</td>
+      <td><span class="badge ${cls}">${ac}</span></td>
+    `;
+    tb.appendChild(tr);
+  });
+}
+
+/* ─── TORNADO CHART ─── */
+function buildTornado(){
+  const ctx=document.getElementById('tornado-chart').getContext('2d');
+  new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:tornado.map(d=>d.label),
+      datasets:[{
+        data:tornado.map(d=>d.value),
+        backgroundColor:tornado.map(d=>{
+          const r=Math.abs(d.value)/36;
+          return d.value>=0
+            ?`rgba(239,68,68,${.3+.65*r})`
+            :`rgba(16,185,129,${.3+.65*Math.abs(d.value)/29})`;
+        }),
+        borderColor:tornado.map(d=>d.value>=0?'#EF4444':'#10B981'),
+        borderWidth:1,borderRadius:3,
+      }]
+    },
+    options:{
+      indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#0D1B2E',borderColor:'#1E3352',borderWidth:1,
+          titleColor:'#E8A63B',bodyColor:'#EDE8E0',
+          titleFont:{family:"'Fira Code'",size:11},
+          bodyFont:{family:'DM Sans',size:13},
+          callbacks:{
+            title:i=>i[0].label,
+            label:i=>' '+(i.raw>=0?'+':'')+i.raw.toFixed(1)+'% expected loss'
+          }
+        }
+      },
+      scales:{
+        x:{
+          grid:{color:'#1A2D42'},
+          ticks:{color:'#6B7F96',font:{family:"'Fira Code'",size:10},callback:v=>(v>=0?'+':'')+v+'%'},
+          border:{color:'#1A2D42'},
+        },
+        y:{
+          grid:{display:false},
+          ticks:{color:'#EDE8E0',font:{family:'DM Sans',size:12}},
+          border:{color:'#1A2D42'},
+        }
+      }
+    }
+  });
+}
+
+/* ─── CLUSTER CARDS ─── */
+function buildClusters(){
+  const ctr=document.getElementById('clusters-container');
+  ['Low','Medium','Medium-High','High'].forEach(band=>{
+    const bc=BAND_COLOR[band];
+    const cards=clusters.filter(c=>c.band===band);
+    const sec=document.createElement('div');
+    sec.className='band-block';
+    sec.innerHTML=`<div class="band-head" style="color:${bc}">
+      ${band} Risk Band &nbsp;
+      <span class="band-desc">${BAND_DESC[band]}</span>
+    </div>
+    <div class="cluster-grid" id="grid-${band.replace('-','_')}"></div>`;
+    ctr.appendChild(sec);
+
+    const grid=sec.querySelector('.cluster-grid');
+    cards.forEach(c=>{
+      const vs=((c.loss/PMEAN-1)*100).toFixed(0);
+      const vsSign=vs>=0?'+':'';
+      const vsColor=parseFloat(vs)>=0?'#F97316':'#10B981';
+      const card=document.createElement('div');
+      card.className='cluster-card';
+      card.innerHTML=`
+        <div class="cc-bar" style="background:${bc}"></div>
+        <div class="cc-id">${c.id} &middot; ${c.pct.toFixed(1)}% of band</div>
+        <div class="cc-loss" style="color:${bc}">€${c.loss.toLocaleString()}</div>
+        <div class="cc-tags">
+          <span class="cc-tag">⚧ ${c.gender}</span>
+          <span class="cc-tag">💼 ${c.job}</span>
+          <span class="cc-tag">🚗 Type ${c.carType}</span>
+          <span class="cc-tag">👤 ~${Math.round(c.age)} yrs</span>
+        </div>
+        <div class="cc-foot">
+          <span>${c.n.toLocaleString()} customers</span>
+          <span style="color:${vsColor}">${vsSign}${vs}% vs avg</span>
+        </div>`;
+      grid.appendChild(card);
+    });
+  });
+}
+
+/* ─── HEATMAP ─── */
+let selCover='1', selCar='A';
+
+function lerpColor(ratio){
+  // 0 → teal (#06D6A0), 0.5 → amber (#F59E0B), 1 → red (#DC2626)
+  let r,g,b;
+  if(ratio<.5){
+    const t=ratio*2;
+    r=Math.round(6+(245-6)*t); g=Math.round(214+(158-214)*t); b=Math.round(160+(11-160)*t);
+  } else {
+    const t=(ratio-.5)*2;
+    r=Math.round(245+(220-245)*t); g=Math.round(158+(38-158)*t); b=Math.round(11+(38-11)*t);
+  }
+  return `rgb(${r},${g},${b})`;
+}
+
+function buildHeatmap(){
+  const hm=document.getElementById('heatmap');
+  hm.innerHTML='';
+  const data=cellData[selCover]?.[selCar];
+  if(!data) return;
+
+  const ages=["<=30","31-55",">55"], gens=["Female","Male"];
+
+  // global min/max for consistent color scale
+  const all=[];
+  Object.values(cellData).forEach(cv=>Object.values(cv).forEach(ct=>
+    Object.values(ct).forEach(g=>Object.values(g).forEach(v=>all.push(v)))
+  ));
+  const mn=Math.min(...all), mx=Math.max(...all);
+
+  // header
+  mkEl(hm,'div','hm-col-head','');
+  ages.forEach(a=>mkEl(hm,'div','hm-col-head',a));
+
+  // rows
+  gens.forEach(g=>{
+    mkEl(hm,'div','hm-row-label',g);
+    ages.forEach(a=>{
+      const v=data[g][a];
+      const k=`${selCover}|${selCar}|${g}|${a}`;
+      const isSparse=sparse.has(k);
+      const ratio=(v-mn)/(mx-mn);
+      const bg=lerpColor(ratio);
+      const textLum=ratio>.55?'rgba(255,255,255,.95)':'rgba(255,255,255,.92)';
+      const cell=document.createElement('div');
+      cell.className='hm-cell';
+      cell.style.background=bg;
+      cell.innerHTML=`
+        ${isSparse?'<span class="sparse-tag">*sparse</span>':''}
+        <span class="cell-val" style="color:${textLum}">€${v.toLocaleString()}</span>
+        <span class="cell-sub" style="color:${textLum}">${g} · ${a}</span>`;
+      hm.appendChild(cell);
+    });
+  });
+}
+
+function mkEl(parent,tag,cls,text){
+  const el=document.createElement(tag);
+  el.className=cls; el.textContent=text; parent.appendChild(el); return el;
+}
+
+function setCover(v,btn){
+  selCover=v;
+  document.querySelectorAll('#cover-btns .ctrl-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');buildHeatmap();
+}
+function setCarType(v,btn){
+  selCar=v;
+  document.querySelectorAll('#cartype-btns .ctrl-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');buildHeatmap();
+}
+
+/* ─── CELLS BAR ─── */
+function buildCellsBar(){
+  const flat=[];
+  Object.entries(cellData).forEach(([cov,cts])=>
+    Object.entries(cts).forEach(([ct,gs])=>
+      Object.entries(gs).forEach(([g,ages])=>
+        Object.entries(ages).forEach(([a,v])=>
+          flat.push({label:`${cov==='0'?'No cover':'Cover'} · ${ct} · ${g} · ${a}`, v})
+        )
+      )
+    )
+  );
+  flat.sort((a,b)=>a.v-b.v);
+  const mn=flat[0].v, mx=flat[flat.length-1].v;
+
+  const ctx=document.getElementById('cells-bar').getContext('2d');
+  new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:flat.map(d=>d.label),
+      datasets:[{
+        data:flat.map(d=>d.v),
+        backgroundColor:flat.map(d=>{
+          const r=(d.v-mn)/(mx-mn);
+          return lerpColor(r).replace('rgb','rgba').replace(')',',0.8)');
+        }),
+        borderWidth:0,borderRadius:2,
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#0D1B2E',borderColor:'#1E3352',borderWidth:1,
+          titleColor:'#E8A63B',bodyColor:'#EDE8E0',
+          titleFont:{family:"'Fira Code'",size:10},
+          callbacks:{
+            title:i=>i[0].label,
+            label:i=>' €'+Math.round(i.raw)+' expected loss'
+          }
+        }
+      },
+      scales:{
+        x:{display:false},
+        y:{
+          grid:{color:'#1A2D42'},
+          ticks:{color:'#6B7F96',font:{family:"'Fira Code'",size:10},callback:v=>'€'+v},
+          border:{color:'#1A2D42'},
+        }
+      }
+    }
+  });
+}
+
+
+
+
+/* ─── TREE VISUALIZATION ─── */
+const treeData8 = {
+    name: "Root",
+    rule: "Age",
+    children: [
+        {
+            name: "Age > 29.50",
+            rule: "Density",
+            children: [
+                { name: "Density <= 151.84", rule: "Retain (Mean €235)" },
+                { name: "Density > 151.84", rule: "Monitor (Mean €406)" }
+            ]
+        },
+        {
+            name: "Age <= 29.50",
+            rule: "Density",
+            children: [
+                {
+                    name: "Density <= 190.01",
+                    rule: "Job",
+                    children: [
+                        {
+                            name: "Job in {Emp, Ret...}",
+                            rule: "Age",
+                            children: [
+                                { name: "Age > 22.50", rule: "Monitor (Mean €458)" },
+                                { name: "Age <= 22.50", rule: "Review (Mean €651)" }
+                            ]
+                        },
+                        {
+                            name: "Job in {Unemployed}",
+                            rule: "Density",
+                            children: [
+                                { name: "Density <= 87.49", rule: "Review (Mean €672)" },
+                                { name: "Density > 87.49", rule: "Flag (Mean €950)" }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: "Density > 190.01",
+                    rule: "Age",
+                    children: [
+                        { name: "Age > 22.50", rule: "Review (Mean €835)" },
+                        { name: "Age <= 22.50", rule: "Flag (Mean €950)" }
+                    ]
+                }
+            ]
+        }
+    ]
+};
+
+const treeData24 = {
+    name: "Root",
+    rule: "Age",
+    children: [
+        {
+            name: "Age > 29.50",
+            rule: "Density",
+            children: [
+                {
+                    name: "Density <= 151.84",
+                    rule: "Density",
+                    children: [
+                        { name: "Density <= 77.71", rule: "Retain (Mean €207)" },
+                        { name: "Density > 77.71", rule: "Retain (Mean €279)" }
+                    ]
+                },
+                {
+                    name: "Density > 151.84",
+                    rule: "Density",
+                    children: [
+                        { name: "Density <= 246.92", rule: "Monitor (Mean €363)" },
+                        {
+                            name: "Density > 246.92",
+                            rule: "Density",
+                            children: [
+                                { name: "Density <= 274.03", rule: "Review (Mean €560)" },
+                                { name: "Density > 274.03", rule: "Monitor (Mean €425)" }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            name: "Age <= 29.50",
+            rule: "Density",
+            children: [
+                {
+                    name: "Density <= 190.01",
+                    rule: "Job",
+                    children: [
+                        {
+                            name: "Job in {Emp, Ret...}",
+                            rule: "Age",
+                            children: [
+                                {
+                                    name: "Age <= 22.50",
+                                    rule: "Gender",
+                                    children: [
+                                        { name: "Female", rule: "Monitor (Mean €496)" },
+                                        {
+                                            name: "Male",
+                                            rule: "Age",
+                                            children: [
+                                                { name: "Age <= 18.50", rule: "Flag (Mean €932)" },
+                                                { name: "Age > 18.50", rule: "Review (Mean €677)" }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    name: "Age > 22.50",
+                                    rule: "Density",
+                                    children: [
+                                        { name: "Density <= 100.57", rule: "Monitor (Mean €412)" },
+                                        { name: "Density > 100.57", rule: "Review (Mean €538)" }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            name: "Job in {Unemployed}",
+                            rule: "Density",
+                            children: [
+                                {
+                                    name: "Density <= 87.49",
+                                    rule: "Gender",
+                                    children: [
+                                        { name: "Female", rule: "Monitor (Mean €507)" },
+                                        { name: "Male", rule: "Review (Mean €758)" }
+                                    ]
+                                },
+                                {
+                                    name: "Density > 87.49",
+                                    rule: "Age",
+                                    children: [
+                                        {
+                                            name: "Age <= 24.50",
+                                            rule: "Gender",
+                                            children: [
+                                                { name: "Female", rule: "Flag (Mean €841)" },
+                                                { name: "Male", rule: "Flag (Mean €1181)" }
+                                            ]
+                                        },
+                                        { name: "Age > 24.50", rule: "Review (Mean €778)" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: "Density > 190.01",
+                    rule: "Age",
+                    children: [
+                        {
+                            name: "Age <= 22.50",
+                            rule: "Job",
+                            children: [
+                                {
+                                    name: "Job in {Emp, Ret...}",
+                                    rule: "Gender",
+                                    children: [
+                                        { name: "Female", rule: "Flag (Mean €918)" },
+                                        { name: "Male", rule: "Flag (Mean €1172)" }
+                                    ]
+                                },
+                                {
+                                    name: "Job in {Unemployed}",
+                                    rule: "Density",
+                                    children: [
+                                        { name: "Density <= 258.96", rule: "Flag (Mean €1277)" },
+                                        {
+                                            name: "Density > 258.96",
+                                            rule: "UW Year / Tenure",
+                                            children: [
+                                                { name: "Older UW", rule: "Flag (Mean €1433)" },
+                                                {
+                                                    name: "Recent UW",
+                                                    rule: "Density",
+                                                    children: [
+                                                        { name: "Density <= 287.88", rule: "Severe (Mean €1786)" },
+                                                        {
+                                                            name: "Density > 287.88",
+                                                            rule: "Tenure",
+                                                            children: [
+                                                                { name: "nYears <= 13", rule: "Extreme (Mean €2444)" },
+                                                                { name: "nYears > 13", rule: "Extreme (Mean €6857)" }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            name: "Age > 22.50",
+                            rule: "Job",
+                            children: [
+                                { name: "Job in {Emp, Ret...}", rule: "Review (Mean €757)" },
+                                { name: "Job in {Unemployed}", rule: "Flag (Mean €1072)" }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+};
+
+function drawTree(data, btn) {
+    if(btn) {
+        document.querySelectorAll('.tree-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+
+    const container = d3.select("#interactive-tree");
+    container.selectAll("*").remove();
+
+    const width = 900;
+    const height = 500;
+    const margin = {top: 20, right: 120, bottom: 20, left: 120};
+
+    const svg = container.append("svg")
+        .attr("width", "100%")
+        .attr("height", height)
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    const treemap = d3.tree().size([height - 40, width - 300]);
+
+    let root = d3.hierarchy(data, d => d.children);
+    root.x0 = height / 2;
+    root.y0 = 0;
+
+    function collapse(d) {
+        if(d.children) {
+            d._children = d.children;
+            d._children.forEach(collapse);
+            d.children = null;
+        }
+    }
+
+    if (root.children) root.children.forEach(collapse);
+
+    let i = 0;
+    update(root);
+
+    function update(source) {
+        const treeData = treemap(root);
+        const nodes = treeData.descendants();
+        const links = nodes.slice(1);
+
+        const levelWidth = {};
+nodes.forEach(d => {
+    levelWidth[d.depth] = (levelWidth[d.depth] || 0) + 1;
+});
+
+const maxDepth = d3.max(nodes, d => d.depth);
+const horizontalSpacing = 220;
+
+// dynamically size width
+const treeWidth = (maxDepth + 1) * horizontalSpacing;
+
+// update SVG width dynamically
+d3.select("#interactive-tree svg")
+    .attr("width", treeWidth + 200);
+
+// apply spacing
+nodes.forEach(d => {
+    d.y = d.depth * horizontalSpacing;
+});
+
+        const node = svg.selectAll('g.node')
+            .data(nodes, d => d.id || (d.id = ++i));
+
+        const nodeEnter = node.enter().append('g')
+            .attr('class', 'node')
+            .attr("transform", `translate(${source.y0},${source.x0})`)
+            .on('click', (event, d) => {
+                if (d.children) {
+                    d._children = d.children;
+                    d.children = null;
+                } else {
+                    d.children = d._children;
+                    d._children = null;
+                }
+                update(d);
+            });
+
+        // 🎨 colored nodes (safe)
+        nodeEnter.append('circle')
+            .attr('r', 1e-6)
+            .style("fill", d => getColor(d));
+
+        nodeEnter.append('text')
+            .attr("dy", "-1.2em")
+            .attr("x", d => d.children || d._children ? -12 : 12)
+            .attr("text-anchor", d => d.children || d._children ? "end" : "start")
+            .text(d => d.data.name);
+
+        nodeEnter.append('text')
+            .attr("dy", "1.2em")
+            .attr("x", d => d.children || d._children ? -12 : 12)
+            .attr("text-anchor", d => d.children || d._children ? "end" : "start")
+            .style("fill", "var(--cyan)")
+            .text(d => d.data.rule);
+
+        const nodeUpdate = nodeEnter.merge(node);
+
+        nodeUpdate.transition().duration(300)
+            .attr("transform", d => `translate(${d.y},${d.x})`);
+
+        nodeUpdate.select('circle')
+            .attr('r', 6)
+            .style("fill", d => getColor(d));
+
+        node.exit().remove();
+
+        const link = svg.selectAll('path.link')
+            .data(links, d => d.id);
+
+        link.enter().insert('path', "g")
+            .attr("class", "link")
+            .merge(link)
+            .transition().duration(300)
+            .attr('d', d => diagonal(d, d.parent));
+
+        link.exit().remove();
+
+        nodes.forEach(d => {
+            d.x0 = d.x;
+            d.y0 = d.y;
+        });
+
+        function diagonal(s, d) {
+            return `M ${s.y} ${s.x}
+                    C ${(s.y + d.y) / 2} ${s.x},
+                      ${(s.y + d.y) / 2} ${d.x},
+                      ${d.y} ${d.x}`;
+        }
+    }
+
+    // 🎨 SAFE COLOR LOGIC
+    function getColor(d) {
+        const r = d.data.rule || "";
+
+        if (r.includes("Retain")) return "#10B981";
+        if (r.includes("Monitor")) return "#06B6D4";
+        if (r.includes("Review")) return "#FACC15";
+        if (r.includes("Flag")) return "#EF4444";
+        if (r.includes("Extreme")) return "#7F1D1D";
+
+        return d._children ? "#E8A63B" : "#132539";
+    }
+}
+  
+/* ─── INIT ─── */
+window.addEventListener('DOMContentLoaded',()=>{
+  setTimeout(buildTerrain, 60); // allow svg to get width
+  buildSegTable();
+  buildClusters();
+  buildHeatmap();
+  drawTree(treeData8, null); // Adds the tree chart!
+});
+window.addEventListener('resize',()=>{
+  const svg=document.getElementById('terrain-svg');
+  svg.innerHTML='';
+  buildTerrain();
+});
+</script>
+</body>
+</html>
